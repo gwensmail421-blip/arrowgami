@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+<title>Arrowgami</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --sky-1: #d6e6f1;
+    --sky-2: #eef4f8;
+    --ink: #1b2230;
+    --ink-soft: #5a6577;
+    --board: #f8fbfd;
+    --slot: #dfe7ef;
+    --up: #e8664a;
+    --right: #1f9e8f;
+    --down: #4b53c9;
+    --left: #e0a31a;
+    --heart: #e5484d;
+    --gold: #f2b01e;
+    --scrim: rgba(22, 30, 44, 0.55);
+    --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(180deg, var(--sky-1), var(--sky-2));
+    color: var(--ink);
+    font-family: var(--body);
+    font-weight: 700;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .app {
+    height: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 12px;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 12px;
+  }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .icon-btn {
+    width: 44px; height: 44px; border-radius: 14px; border: 0;
+    background: rgba(255,255,255,0.7); color: var(--ink);
+    display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 2px 0 rgba(27,34,48,0.12);
+  }
+  .icon-btn svg { width: 22px; height: 22px; }
+  .level-title { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1; letter-spacing: 0.01em; }
+  .level-sub { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+  .level-block { text-align: center; }
+  .hud { display: flex; justify-content: center; gap: 6px; min-height: 30px; }
+  .heart { width: 28px; height: 28px; color: var(--heart); transition: transform .2s, opacity .2s; }
+  .heart.empty { color: var(--slot); }
+  .heart.lost { animation: heartLost .5s ease; }
+  @keyframes heartLost { 30% { transform: scale(1.35) rotate(-12deg); } 60% { transform: scale(.8) rotate(8deg); } }
+
+  .stage { display: grid; place-items: center; min-height: 0; }
+  .board-wrap { width: min(100%, 60vh, 480px); position: relative; }
+  .board {
+    position: relative; width: 100%; aspect-ratio: 1;
+    background: var(--board);
+    border-radius: 22px;
+    box-shadow: 0 6px 0 rgba(27,34,48,0.10), 0 18px 40px rgba(27,34,48,0.12);
+    touch-action: manipulation;
+  }
+  .board.shake { animation: boardShake .3s ease; }
+  @keyframes boardShake { 25% { transform: translateX(-5px); } 50% { transform: translateX(4px); } 75% { transform: translateX(-2px); } }
+  .slot, .arrow, .rock { position: absolute; box-sizing: border-box; }
+  .slot::after {
+    content: ""; position: absolute; inset: 42%; border-radius: 50%; background: var(--slot);
+  }
+  .arrow, .rock { padding: calc(100% / var(--n) * 0.07); }
+  .arrow {
+    border: 0; background: none; cursor: pointer;
+    display: grid; place-items: stretch;
+  }
+  .arrow .tile {
+    border-radius: calc(480px / var(--n) * 0.22);
+    display: flex; align-items: stretch;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,0.16);
+    transition: transform .12s ease;
+    overflow: hidden;
+  }
+  .arrow[data-d="right"] .tile { justify-content: flex-end; }
+  .arrow[data-d="down"] .tile { flex-direction: column; justify-content: flex-end; }
+  .arrow[data-d="up"] .tile { flex-direction: column; }
+  .arrow.long[data-d="left"] .tile, .arrow.long[data-d="right"] .tile {
+    background-image: repeating-linear-gradient(90deg, transparent 0 16px, rgba(255,255,255,0.14) 16px 19px);
+  }
+  .arrow.long[data-d="up"] .tile, .arrow.long[data-d="down"] .tile {
+    background-image: repeating-linear-gradient(0deg, transparent 0 16px, rgba(255,255,255,0.14) 16px 19px);
+  }
+  .arrow .glyph { aspect-ratio: 1; display: grid; place-items: center; flex: none; }
+  .arrow[data-d="left"] .glyph, .arrow[data-d="right"] .glyph { height: 100%; }
+  .arrow[data-d="up"] .glyph, .arrow[data-d="down"] .glyph { width: 100%; }
+  .arrow:active .tile { transform: scale(0.94); }
+  .arrow:focus-visible { outline: 3px solid var(--ink); outline-offset: -2px; border-radius: 12px; }
+  .arrow svg { width: 62%; height: 62%; }
+  .rock > div {
+    width: 100%; height: 100%; border-radius: 30%;
+    background: radial-gradient(circle at 35% 30%, #a3acba, #6d7686 70%);
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,0.22);
+  }
+  .rock.hit > div { animation: hit .35s ease; }
+  .intro-demo { display: flex; justify-content: center; gap: 8px; }
+  .intro-demo .arrow, .intro-demo .rock { position: static; padding: 0; width: auto; height: 48px; --n: 10; }
+  .intro-demo .rock > div { width: 48px; }
+  .arrow[data-d="up"] .tile { background: var(--up); }
+  .arrow[data-d="right"] .tile { background: var(--right); }
+  .arrow[data-d="down"] .tile { background: var(--down); }
+  .arrow[data-d="left"] .tile { background: var(--left); }
+  .arrow.hit .tile { animation: hit .35s ease; }
+  @keyframes hit { 30% { transform: scale(1.12); filter: brightness(1.2); } }
+  .arrow.hint .tile { animation: hint 1s ease-in-out infinite; }
+  @keyframes hint { 50% { transform: scale(1.1); box-shadow: 0 0 0 5px rgba(242,176,30,0.7), inset 0 -4px 0 rgba(0,0,0,0.16); } }
+
+  .tip { text-align: center; color: var(--ink-soft); font-size: 14px; margin-top: 12px; line-height: 1.4; min-height: 20px; }
+  .bottom { display: flex; gap: 12px; justify-content: center; padding-bottom: 4px; }
+  .btn {
+    font-family: var(--display); font-weight: 800; font-size: 18px;
+    border: 0; border-radius: 16px; padding: 12px 20px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    color: #fff; background: var(--ink);
+    box-shadow: 0 4px 0 rgba(0,0,0,0.25);
+    transition: transform .08s;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+  .btn:focus-visible, .icon-btn:focus-visible { outline: 3px solid var(--down); outline-offset: 2px; }
+  .btn.primary { background: var(--up); }
+  .btn.soft { background: rgba(255,255,255,0.8); color: var(--ink); box-shadow: 0 4px 0 rgba(27,34,48,0.15); }
+  .btn.gold { background: var(--gold); color: var(--ink); }
+  .btn svg { width: 20px; height: 20px; }
+  .badge { background: #fff; color: var(--ink); border-radius: 999px; font-size: 14px; padding: 0 8px; line-height: 22px; font-family: var(--body); }
+
+  .overlay {
+    position: fixed; inset: 0; background: var(--scrim);
+    display: grid; place-items: center; padding: 16px; z-index: 10;
+    animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } }
+  .card {
+    background: #fff; border-radius: 26px; padding: 24px 20px;
+    width: min(100%, 380px); box-sizing: border-box; text-align: center;
+    display: grid; gap: 14px;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.12);
+    animation: pop .3s cubic-bezier(.2,1.4,.4,1);
+    max-height: calc(100% - 20px); overflow-y: auto;
+  }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } }
+  .card h2 { font-family: var(--display); font-weight: 800; font-size: 34px; line-height: 1; margin: 0; text-wrap: balance; }
+  .card p { margin: 0; color: var(--ink-soft); line-height: 1.45; }
+  .card .actions { display: grid; gap: 10px; }
+  .stars { display: flex; justify-content: center; gap: 8px; }
+  .stars svg { width: 46px; height: 46px; color: var(--slot); }
+  .stars svg.on { color: var(--gold); animation: starIn .4s cubic-bezier(.2,1.6,.4,1) backwards; }
+  .stars svg.on:nth-child(2) { animation-delay: .15s; }
+  .stars svg.on:nth-child(3) { animation-delay: .3s; }
+  @keyframes starIn { from { transform: scale(0) rotate(-40deg); } }
+
+  .logo { font-family: var(--display); font-weight: 800; font-size: 52px; line-height: .9; letter-spacing: -0.01em; }
+  .logo span:nth-child(1) { color: var(--up); }
+  .logo span:nth-child(2) { color: var(--down); }
+  .logo-arrows { display: flex; justify-content: center; gap: 6px; }
+  .logo-arrows i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; box-shadow: inset 0 -3px 0 rgba(0,0,0,.16); }
+  .logo-arrows i svg { width: 60%; height: 60%; }
+  .map-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); text-align: left; }
+  .map { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .map button {
+    aspect-ratio: 1; border: 0; border-radius: 14px; cursor: pointer;
+    font-family: var(--display); font-weight: 800; font-size: 18px;
+    background: var(--sky-2); color: var(--ink);
+    display: grid; place-items: center; align-content: center; gap: 0; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .map button.done { background: #e5f5f2; }
+  .map button.current { background: var(--up); color: #fff; }
+  .map button:disabled { opacity: .45; cursor: default; }
+  .map small { font-size: 10px; color: var(--gold); letter-spacing: 1px; font-family: var(--body); }
+  .map button.current small { color: #fff; }
+  .ad-box {
+    border: 2px dashed var(--slot); border-radius: 16px; padding: 22px 12px;
+    color: var(--ink-soft); font-size: 14px;
+  }
+  .ad-count { font-family: var(--display); font-size: 44px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .note { font-size: 12px; color: var(--ink-soft); }
+  canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <button class="icon-btn" id="homeBtn" aria-label="Level map">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+    </button>
+    <div class="level-block">
+      <div class="level-title" id="levelTitle">Level 1</div>
+      <div class="level-sub" id="levelSub">4 × 4 board</div>
+    </div>
+    <button class="icon-btn" id="soundBtn" aria-label="Sound on"></button>
+  </div>
+  <div class="hud" id="hearts" aria-label="Hearts left"></div>
+  <div class="stage">
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+  </div>
+  <div class="bottom">
+    <button class="btn soft" id="restartBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      Restart
+    </button>
+    <button class="btn gold" id="hintBtn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2zM9 20h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg>
+      Hint <span class="badge" id="hintCount">3</span>
+    </button>
+  </div>
+</div>
+<div id="overlayRoot"></div>
+
+<script>
+(() => {
+  const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3.5 20 12h-5v8.5H9V12H4z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  const HEART_SVG = '<svg class="heart" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.6 4.5c2.2 0 3.7 1.3 4.4 2.5.7-1.2 2.2-2.5 4.4-2.5 3.6 0 5.7 3.8 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg>';
+  const STAR_SVG = on => `<svg class="${on ? 'on' : ''}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>`;
+  const SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+  const SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+  const DIRS = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
+  const ROT = { up: 0, right: 90, down: 180, left: 270 };
+  const DIR_KEYS = Object.keys(DIRS);
+  const MAX_HEARTS = 3;
+  const EMPTY = -1, ROCK = -2;
+  const LONG_FROM = 3, ROCKS_FROM = 7;
+
+  // ---------- saved progress ----------
+  const SAVE_KEY = 'arrow-out-v2';
+  let save = { unlocked: 1, stars: {}, hints: 3, sound: true, seen: {} };
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(save, s); } catch (e) {}
+  function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+
+  // ---------- level generation ----------
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function sizeFor(level) {
+    if (level <= 2) return 4;
+    if (level <= 5) return 5;
+    if (level <= 9) return 6;
+    if (level <= 14) return 7;
+    if (level <= 24) return 8;
+    return 9;
+  }
+  // Walks from an arrow's head toward the edge. Returns what it hits first
+  // (an arrow id, ROCK, or EMPTY when the way out is clear) and how many steps it took.
+  function scan(occ, n, head, d) {
+    let x = head % n, y = (head / n) | 0;
+    const [dx, dy] = DIRS[d];
+    let steps = 0;
+    while (true) {
+      x += dx; y += dy; steps++;
+      if (x < 0 || y < 0 || x >= n || y >= n) return { hit: EMPTY, steps, cell: -1 };
+      const j = y * n + x;
+      if (occ[j] !== EMPTY) return { hit: occ[j], steps, cell: j };
+    }
+  }
+  const headOf = a => a.cells[a.cells.length - 1];
+
+  // Builds the board backwards: each new arrow must have a clear way out past the pieces
+  // already placed, so clearing them in reverse order always works. Every level is solvable.
+  function buildOnce(level, rand) {
+    const n = sizeFor(level);
+    const occ = new Array(n * n).fill(EMPTY);
+    const rocks = [];
+    if (level >= ROCKS_FROM) {
+      const count = Math.round(n * n * (0.05 + Math.min(level, 40) * 0.001));
+      while (rocks.length < count) {
+        const c = (rand() * n * n) | 0;
+        if (occ[c] === EMPTY) { occ[c] = ROCK; rocks.push(c); }
+      }
+    }
+    const longChance = level >= LONG_FROM ? Math.min(0.6, 0.3 + (level - LONG_FROM) * 0.02) : 0;
+    const maxLen = Math.min(n - 1, level >= 14 ? 4 : 3);
+    const fill = Math.min(0.93, 0.62 + level * 0.012);
+    const target = Math.round((n * n - rocks.length) * fill);
+    const arrows = [];
+    let filled = 0;
+    const dead = new Set();
+    // Pick the next square to fill, favouring squares that sit in the way out of arrows
+    // already placed. That stacks arrows into long blocking chains, which is what makes a level hard.
+    while (filled < target) {
+      const cover = new Array(n * n).fill(0);
+      for (const a of arrows) {
+        const [dx, dy] = DIRS[a.d];
+        let x = headOf(a) % n, y = (headOf(a) / n) | 0;
+        while (true) { x += dx; y += dy; if (x < 0 || y < 0 || x >= n || y >= n) break; cover[y * n + x]++; }
+      }
+      let total = 0;
+      const pool = [];
+      for (let c = 0; c < n * n; c++) {
+        if (occ[c] !== EMPTY || dead.has(c)) continue;
+        const w = 1 + cover[c] * cover[c] * 4;
+        pool.push([c, w]); total += w;
+      }
+      if (!pool.length) break;
+      let r = rand() * total, tail = pool[0][0];
+      for (const [c, w] of pool) { r -= w; if (r <= 0) { tail = c; break; } }
+      const want = rand() < longChance ? 2 + ((rand() * (maxLen - 1)) | 0) : 1;
+      let options = [];
+      for (let len = want; len >= 1 && !options.length; len--) {
+        for (const d of DIR_KEYS) {
+          const [dx, dy] = DIRS[d];
+          const cells = [];
+          let x = tail % n, y = (tail / n) | 0, ok = true;
+          for (let k = 0; k < len; k++) {
+            if (x < 0 || y < 0 || x >= n || y >= n || occ[y * n + x] !== EMPTY) { ok = false; break; }
+            cells.push(y * n + x); x += dx; y += dy;
+          }
+          if (!ok) continue;
+          const s = scan(occ, n, cells[cells.length - 1], d);
+          if (s.hit === EMPTY) options.push({ d, cells, w: s.steps * s.steps + 1 });
+        }
+      }
+      if (!options.length) { dead.add(tail); continue; }
+      let tw = options.reduce((s, o) => s + o.w, 0), rr = rand() * tw, pick = options[0];
+      for (const o of options) { rr -= o.w; if (rr <= 0) { pick = o; break; } }
+      const id = arrows.length;
+      arrows.push({ id, d: pick.d, cells: pick.cells });
+      pick.cells.forEach(c => occ[c] = id);
+      filled += pick.cells.length;
+    }
+    return { n, occ, arrows, rocks };
+  }
+  // Difficulty = how many "waves" it takes to clear the board when you remove every
+  // free arrow at once. More waves means longer chains of arrows blocking each other.
+  function waves(b) {
+    const occ = b.occ.slice();
+    let left = b.arrows.slice(), count = 0, firstFree = 0;
+    while (left.length) {
+      const free = left.filter(a => scan(occ, b.n, headOf(a), a.d).hit === EMPTY);
+      if (!free.length) return { count: 99, firstFree: 0 };
+      if (count === 0) firstFree = free.length;
+      free.forEach(a => a.cells.forEach(c => occ[c] = EMPTY));
+      left = left.filter(a => !free.includes(a));
+      count++;
+    }
+    return { count, firstFree };
+  }
+  function generate(level) {
+    const rand = mulberry32(level * 9973 + 17);
+    const tries = level <= 2 ? 1 : Math.min(10 + level * 2, 60);
+    let best = null, bestScore = -Infinity;
+    for (let t = 0; t < tries; t++) {
+      const b = buildOnce(level, rand);
+      const w = waves(b);
+      const score = w.count * 10 - w.firstFree * 2 + b.arrows.length * 0.1;
+      if (score > bestScore) { bestScore = score; best = b; best.waves = w.count; }
+    }
+    return best;
+  }
+
+  // ---------- sound ----------
+  let actx = null;
+  function tone(freq, dur, type = 'sine', vol = 0.18, delay = 0) {
+    if (!save.sound) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t = actx.currentTime + delay;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      o.frequency.exponentialRampToValueAtTime(freq * 1.5, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    whoosh(combo, len) { tone(420 + Math.min(combo, 12) * 45 - (len - 1) * 60, 0.16 + (len - 1) * 0.05, 'triangle', 0.16); },
+    bump() { tone(110, 0.22, 'square', 0.12); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.15, i * 0.09)); },
+    lose() { [330, 262, 196].forEach((f, i) => tone(f, 0.25, 'sine', 0.15, i * 0.12)); },
+    tap() { tone(660, 0.06, 'sine', 0.08); },
+  };
+  function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
+
+  // ---------- game state ----------
+  const $ = id => document.getElementById(id);
+  const boardEl = $('board');
+  let state = null;
+
+  function startLevel(level, boot) {
+    const b = generate(level);
+    state = { level, n: b.n, occ: b.occ, arrows: {}, rocks: b.rocks, left: b.arrows.length, hearts: MAX_HEARTS, combo: 0, done: false, rockEls: {} };
+    b.arrows.forEach(a => state.arrows[a.id] = a);
+    $('levelTitle').textContent = 'Level ' + level;
+    const tough = b.waves >= 8 ? 'Very hard' : b.waves >= 7 ? 'Hard' : b.waves >= 5 ? 'Medium' : 'Easy';
+    $('levelSub').textContent = `${b.n} × ${b.n} board · ${tough}`;
+    $('tip').textContent = level <= 2 ? 'Tap an arrow to slide it the way it points. Clear the board without bumping into anything.' : '';
+    renderBoard();
+    renderHearts();
+    renderHints();
+    if (!boot) maybeIntro(level);
+  }
+
+  function place(el, cells) {
+    const n = state.n, pct = 100 / n;
+    const xs = cells.map(c => c % n), ys = cells.map(c => (c / n) | 0);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys);
+    const w = Math.max(...xs) - x0 + 1, h = Math.max(...ys) - y0 + 1;
+    Object.assign(el.style, { left: x0 * pct + '%', top: y0 * pct + '%', width: w * pct + '%', height: h * pct + '%' });
+  }
+  function arrowInner(d) {
+    return `<div class="tile"><div class="glyph"><div style="transform:rotate(${ROT[d]}deg);display:grid;place-items:center;width:100%;height:100%">${ARROW_SVG}</div></div></div>`;
+  }
+
+  function renderBoard() {
+    const n = state.n;
+    boardEl.innerHTML = '';
+    boardEl.style.setProperty('--n', n);
+    for (let i = 0; i < n * n; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      place(slot, [i]);
+      boardEl.appendChild(slot);
+    }
+    state.rocks.forEach(c => {
+      const r = document.createElement('div');
+      r.className = 'rock';
+      r.innerHTML = '<div></div>';
+      place(r, [c]);
+      boardEl.appendChild(r);
+      state.rockEls[c] = r;
+    });
+    Object.values(state.arrows).forEach(a => {
+      const head = headOf(a);
+      const b = document.createElement('button');
+      b.className = 'arrow' + (a.cells.length > 1 ? ' long' : '');
+      b.dataset.d = a.d;
+      b.setAttribute('aria-label', `${a.cells.length > 1 ? 'Long arrow' : 'Arrow'} pointing ${a.d}, row ${((head / n) | 0) + 1}, column ${(head % n) + 1}`);
+      place(b, a.cells);
+      b.innerHTML = arrowInner(a.d);
+      b.addEventListener('click', () => tapArrow(a.id));
+      boardEl.appendChild(b);
+      a.el = b;
+    });
+  }
+
+  function renderHearts(lostIndex = -1) {
+    const el = $('hearts');
+    el.innerHTML = '';
+    for (let i = 0; i < MAX_HEARTS; i++) {
+      el.insertAdjacentHTML('beforeend', HEART_SVG);
+      const h = el.lastElementChild;
+      if (i >= state.hearts) h.classList.add('empty');
+      if (i === lostIndex) h.classList.add('lost');
+    }
+    el.setAttribute('aria-label', `${state.hearts} of ${MAX_HEARTS} hearts left`);
+  }
+  function renderHints() { $('hintCount').textContent = save.hints > 0 ? save.hints : '+'; }
+  function renderSound() {
+    $('soundBtn').innerHTML = save.sound ? SOUND_ON : SOUND_OFF;
+    $('soundBtn').setAttribute('aria-label', save.sound ? 'Turn sound off' : 'Turn sound on');
+  }
+  function clearHint() { boardEl.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')); }
+  function retrigger(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+  function tapArrow(id) {
+    if (!state || state.done || state.hearts <= 0) return;
+    const a = state.arrows[id];
+    if (!a) return;
+    const el = a.el;
+    const cell = boardEl.clientWidth / state.n;
+    const [dx, dy] = DIRS[a.d];
+    const s = scan(state.occ, state.n, headOf(a), a.d);
+    clearHint();
+    if (s.hit === EMPTY) {
+      // Clear way out: the whole arrow slides off the board.
+      a.cells.forEach(c => state.occ[c] = EMPTY);
+      delete state.arrows[id];
+      state.left--;
+      state.combo++;
+      sfx.whoosh(state.combo, a.cells.length);
+      buzz(8);
+      const dist = (s.steps + a.cells.length + 0.5) * cell;
+      el.style.pointerEvents = 'none';
+      el.style.zIndex = 2;
+      const anim = el.animate(
+        [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${dx * dist}px,${dy * dist}px)`, opacity: 0 }],
+        { duration: 180 + (s.steps + a.cells.length) * 40, easing: 'cubic-bezier(.5,0,.9,.6)' }
+      );
+      anim.onfinish = () => el.remove();
+      if (state.left === 0) {
+        state.done = true;
+        setTimeout(winLevel, 420);
+      }
+    } else {
+      // Blocked: slide up to whatever is in the way, bounce back, lose a heart.
+      state.combo = 0;
+      const fwd = (s.steps - 1 + 0.3) * cell;
+      const dur = 220 + s.steps * 40;
+      el.animate(
+        [{ transform: 'translate(0,0)' }, { transform: `translate(${dx * fwd}px,${dy * fwd}px)`, offset: 0.45 }, { transform: 'translate(0,0)' }],
+        { duration: dur, easing: 'ease-out' }
+      );
+      const blocker = s.hit === ROCK ? state.rockEls[s.cell] : state.arrows[s.hit] && state.arrows[s.hit].el;
+      setTimeout(() => {
+        retrigger(blocker, 'hit');
+        retrigger(boardEl, 'shake');
+        sfx.bump();
+        buzz([30, 30, 30]);
+        state.hearts--;
+        renderHearts(state.hearts);
+        if (state.hearts <= 0) setTimeout(outOfHearts, 450);
+      }, dur * 0.45);
+    }
+  }
+
+  function useHint() {
+    if (!state || state.done) return;
+    if (save.hints <= 0) { offerHintAd(); return; }
+    const free = Object.values(state.arrows).filter(a => scan(state.occ, state.n, headOf(a), a.d).hit === EMPTY);
+    if (!free.length) return;
+    clearHint();
+    free[Math.floor(Math.random() * free.length)].el.classList.add('hint');
+    save.hints--; persist(); renderHints();
+    sfx.tap();
+  }
+
+  // ---------- overlays ----------
+  const root = $('overlayRoot');
+  function showOverlay(html, bind) {
+    root.innerHTML = `<div class="overlay"><div class="card" role="dialog" aria-modal="true">${html}</div></div>`;
+    bind && bind(root.querySelector('.card'));
+  }
+  function closeOverlay() { root.innerHTML = ''; }
+
+  function maybeIntro(level) {
+    let intro = null;
+    if (level >= LONG_FROM && !save.seen.long) {
+      save.seen.long = true;
+      intro = {
+        title: 'New: long arrows',
+        demo: `<div class="arrow long" data-d="right" style="width:140px">${arrowInner('right')}</div>`,
+        text: 'Long arrows take up several squares and slide out all in one piece. They also block more of the board, so plan which ones go first.',
+      };
+    } else if (level >= ROCKS_FROM && !save.seen.rocks) {
+      save.seen.rocks = true;
+      intro = {
+        title: 'New: rocks',
+        demo: `<div class="rock"><div></div></div><div class="arrow" data-d="left" style="width:48px">${arrowInner('left')}</div>`,
+        text: 'Rocks never move. Nothing can slide past them, so find the arrows that have a clear way around.',
+      };
+    }
+    if (!intro) return;
+    persist();
+    showOverlay(`
+      <h2>${intro.title}</h2>
+      <div class="intro-demo">${intro.demo}</div>
+      <p>${intro.text}</p>
+      <button class="btn primary" data-a="go">Got it</button>`, card => {
+      card.querySelector('[data-a=go]').onclick = () => { sfx.tap(); closeOverlay(); };
+    });
+  }
+
+  function winLevel() {
+    const stars = state.hearts;
+    const lvl = state.level;
+    save.stars[lvl] = Math.max(save.stars[lvl] || 0, stars);
+    let bonus = false;
+    if (lvl === save.unlocked) {
+      save.unlocked = lvl + 1;
+      if (lvl % 3 === 0) { save.hints++; bonus = true; }
+    }
+    persist(); renderHints();
+    sfx.win(); buzz([20, 40, 20]);
+    confetti();
+    const lines = ['Board cleared!', 'Nice work!', 'Clean sweep!', 'Smooth moves!'];
+    showOverlay(`
+      <div class="stars">${[1, 2, 3].map(s => STAR_SVG(s <= stars)).join('')}</div>
+      <h2>${lines[lvl % lines.length]}</h2>
+      <p>Level ${lvl} done with ${stars} ${stars === 1 ? 'heart' : 'hearts'} left.${bonus ? ' You earned a free hint.' : ''}</p>
+      <div class="actions">
+        <button class="btn primary" data-a="next">Level ${lvl + 1}</button>
+        <button class="btn soft" data-a="replay">Replay for 3 stars</button>
+      </div>`, card => {
+      card.querySelector('[data-a=next]').onclick = () => { closeOverlay(); startLevel(lvl + 1); };
+      card.querySelector('[data-a=replay]').onclick = () => { closeOverlay(); startLevel(lvl); };
+    });
+  }
+
+  function outOfHearts() {
+    sfx.lose();
+    showOverlay(`
+      <h2>Out of hearts</h2>
+      <p>That arrow bumped into something. Keep your progress on this board with one more heart, or start the level again.</p>
+      <div class="actions">
+        <button class="btn gold" data-a="ad">Watch ad for 1 heart</button>
+        <button class="btn soft" data-a="retry">Restart level</button>
+      </div>`, card => {
+      card.querySelector('[data-a=ad]').onclick = () => playAd('1 extra heart', () => { state.hearts = 1; renderHearts(); });
+      card.querySelector('[data-a=retry]').onclick = () => { closeOverlay(); startLevel(state.level); };
+    });
+  }
+
+  function offerHintAd() {
+    showOverlay(`
+      <h2>Out of hints</h2>
+      <p>Watch a short ad to get 2 hints. You also earn a free hint every 3 levels.</p>
+      <div class="actions">
+        <button class="btn gold" data-a="ad">Watch ad for 2 hints</button>
+        <button class="btn soft" data-a="close">Keep playing</button>
+      </div>`, card => {
+      card.querySelector('[data-a=ad]').onclick = () => playAd('2 hints', () => { save.hints += 2; persist(); renderHints(); });
+      card.querySelector('[data-a=close]').onclick = closeOverlay;
+    });
+  }
+
+  // Placeholder for a rewarded video ad. In the phone app this is where AdMob or similar plays.
+  function playAd(reward, grant) {
+    let left = 3;
+    showOverlay(`
+      <div class="ad-box">
+        <div>Ad placeholder</div>
+        <div class="ad-count" id="adCount">${left}</div>
+        <div>A rewarded video plays here in the app version.</div>
+      </div>
+      <p>Reward: ${reward}</p>`);
+    const timer = setInterval(() => {
+      left--;
+      const c = document.getElementById('adCount');
+      if (c) c.textContent = left;
+      if (left <= 0) {
+        clearInterval(timer);
+        grant();
+        sfx.tap();
+        closeOverlay();
+      }
+    }, 1000);
+  }
+
+  function showHome(first) {
+    const cur = save.unlocked;
+    const count = Math.max(15, Math.ceil((cur + 5) / 5) * 5);
+    let cells = '';
+    for (let l = 1; l <= count; l++) {
+      const st = save.stars[l] || 0;
+      const cls = l === cur ? 'current' : st ? 'done' : '';
+      cells += `<button class="${cls}" data-l="${l}" ${l > cur ? 'disabled' : ''} aria-label="Level ${l}${st ? ', ' + st + ' stars' : ''}">${l}<small>${st ? '★'.repeat(st) : '&nbsp;'}</small></button>`;
+    }
+    const logoArrows = ['up', 'right', 'down', 'left'].map(d =>
+      `<i style="background:var(--${d})"><span style="transform:rotate(${ROT[d]}deg);display:grid;place-items:center;width:100%;height:100%">${ARROW_SVG}</span></i>`).join('');
+    showOverlay(`
+      <div class="logo-arrows">${logoArrows}</div>
+      <div class="logo"><span>Arrow</span><span>gami</span></div>
+      <p>Tap arrows to send them off the board. Pick the right order, because a bump costs a heart.</p>
+      <button class="btn primary" data-a="play">${first && cur === 1 ? 'Play' : 'Play level ' + cur}</button>
+      <div class="map-label">Level map</div>
+      <div class="map">${cells}</div>
+      <div class="note">Progress is saved on this device.</div>`, card => {
+      const go = l => { sfx.tap(); closeOverlay(); startLevel(l); };
+      card.querySelector('[data-a=play]').onclick = () => go(cur);
+      card.querySelectorAll('.map button:not(:disabled)').forEach(b => b.onclick = () => go(+b.dataset.l));
+    });
+  }
+
+  // ---------- confetti ----------
+  function confetti() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = document.createElement('canvas');
+    c.className = 'confetti';
+    const dpr = window.devicePixelRatio || 1;
+    c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+    document.body.appendChild(c);
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    const colors = ['#e8664a', '#1f9e8f', '#4b53c9', '#e0a31a'];
+    const ps = Array.from({ length: 90 }, () => ({
+      x: innerWidth / 2, y: innerHeight * 0.4,
+      vx: (Math.random() - 0.5) * 12, vy: -Math.random() * 12 - 4,
+      s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+      c: colors[(Math.random() * 4) | 0],
+    }));
+    const t0 = performance.now();
+    (function frame(t) {
+      const age = t - t0;
+      g.clearRect(0, 0, innerWidth, innerHeight);
+      ps.forEach(p => {
+        p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.globalAlpha = Math.max(0, 1 - age / 1800);
+        g.fillStyle = p.c; g.fillRect(-p.s / 2, -p.s / 3, p.s, p.s * 0.66); g.restore();
+      });
+      if (age < 1800) requestAnimationFrame(frame); else c.remove();
+    })(t0);
+  }
+
+  // ---------- wiring ----------
+  $('hintBtn').onclick = useHint;
+  $('restartBtn').onclick = () => { sfx.tap(); startLevel(state.level); };
+  $('homeBtn').onclick = () => { sfx.tap(); showHome(false); };
+  $('soundBtn').onclick = () => { save.sound = !save.sound; persist(); renderSound(); sfx.tap(); };
+  renderSound();
+  startLevel(save.unlocked, true);
+  showHome(true);
+})();
+</script>
+</body>
+</html>

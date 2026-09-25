@@ -1,0 +1,19 @@
+{
+  "name": "arrowgami",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arrowgami: Arrow Escape Puzzle for iOS and Android",
+  "scripts": {
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2"
+  }
+}
