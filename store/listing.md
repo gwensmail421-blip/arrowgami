@@ -4,8 +4,10 @@
 - **App name:** Arrowgami: Arrow Escape Puzzle
 - **Category:** Games → Puzzle
 - **Price:** Free, with in-app purchases and ads
-- **Support / marketing URL:** (Asylum MKE site, to be added)
-- **Privacy policy URL:** wherever `docs/privacy-policy.html` is hosted
+- **Support URL:** https://arrowgami.github.io/support/
+- **Marketing URL:** https://arrowgami.github.io
+- **Contact email:** g@asylummke.com
+- **Privacy policy URL:** https://arrowgami.github.io/privacy/
 
 ## App Store (Apple)
 - **Subtitle** (30 characters max): Tap arrows. Clear the board.
