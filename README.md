@@ -25,8 +25,16 @@ In a web browser the game shows a 3-second placeholder instead of an ad.
 - **Android:** every push builds a debug APK. You can download it from the workflow run's artifacts.
 - **iOS:** to build, go to Actions → "iOS build" → Run workflow. That builds a signed release on GitHub's Mac and uploads it to TestFlight. It needs these repository secrets: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY` (the text of the .p8 file) and `APPLE_TEAM_ID`.
 
+## Purchases
+The Shop (Level map → Shop) sells **Remove ads** (`arrowgami.removeads`), **10 hints** (`arrowgami.hints10`) and **30 hints** (`arrowgami.hints30`) through [`@capgo/native-purchases`](https://github.com/Cap-go/capacitor-native-purchases). The products have to exist in App Store Connect and Google Play Console with these exact IDs (see `store/listing.md`). "Remove ads" is restored automatically on a new phone, and there's also a Restore purchases button.
+
+## Store materials
+- `docs/testflight-setup.md`: the one-time TestFlight setup.
+- `docs/admob-setup.md`: how to turn on real ads.
+- `docs/privacy-policy.html`: the privacy policy. It needs a contact email and a public web address.
+- `store/listing.md`: the name, description, keywords, age rating and privacy answers for both stores.
+- `store/screenshots/`: screenshots for iPhone 6.9" and Android phones.
+- `assets/`: the icon and splash source images. After changing them, run `npx capacitor-assets generate --iconBackgroundColor '#c8dcea' --splashBackgroundColor '#d6e6f1' --splashBackgroundColorDark '#1b2230'`.
+
 ## Still to do before the stores
-- A "Remove ads" purchase and hint packs.
-- The app icon, splash screen and store screenshots.
 - A signed Android release bundle for Google Play.
-- A privacy policy page (required because the app shows ads).
