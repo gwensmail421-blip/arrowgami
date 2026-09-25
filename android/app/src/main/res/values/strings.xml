@@ -4,4 +4,6 @@
     <string name="title_activity_main">Arrowgami</string>
     <string name="package_name">app.arrowgami.game</string>
     <string name="custom_url_scheme">app.arrowgami.game</string>
+    <!-- Google's test AdMob app ID. Replace with the real one from the AdMob account. -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

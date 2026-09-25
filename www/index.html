@@ -257,6 +257,57 @@
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(save, s); } catch (e) {}
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
+  // ---------- ads ----------
+  // Google's official test ad units. Swap in the real AdMob IDs (and set TEST_ADS to false)
+  // once the AdMob account is set up. The app IDs live in AndroidManifest/strings.xml and Info.plist.
+  const TEST_ADS = true;
+  const AD_UNITS = {
+    ios: { rewarded: 'ca-app-pub-3940256099942544/1712485313', interstitial: 'ca-app-pub-3940256099942544/4411468910' },
+    android: { rewarded: 'ca-app-pub-3940256099942544/5224354917', interstitial: 'ca-app-pub-3940256099942544/1033173712' },
+  };
+  const INTERSTITIAL_FROM_LEVEL = 10;
+  const INTERSTITIAL_EVERY = 3;
+  const Cap = window.Capacitor;
+  const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  const AdMob = isNative && Cap.Plugins ? Cap.Plugins.AdMob : null;
+  const units = AdMob ? AD_UNITS[Cap.getPlatform()] : null;
+  const ads = { ready: false, rewardedLoaded: false, interstitialLoaded: false, levelsSinceInterstitial: 0 };
+
+  async function initAds() {
+    if (!AdMob || !units) return;
+    try {
+      await AdMob.initialize({ initializeForTesting: TEST_ADS });
+      // Privacy consent (GDPR and similar). Google shows its own form where the law requires one.
+      let consent = await AdMob.requestConsentInfo();
+      if (!consent.canRequestAds && consent.isConsentFormAvailable) consent = await AdMob.showConsentForm();
+      if (Cap.getPlatform() === 'ios') {
+        const t = await AdMob.trackingAuthorizationStatus();
+        if (t.status === 'notDetermined') await AdMob.requestTrackingAuthorization();
+      }
+      ads.ready = true;
+      loadRewarded();
+      loadInterstitial();
+    } catch (e) { console.warn('Ads unavailable', e); }
+  }
+  async function loadRewarded() {
+    if (!ads.ready || ads.rewardedLoaded) return;
+    try { await AdMob.prepareRewardVideoAd({ adId: units.rewarded, isTesting: TEST_ADS }); ads.rewardedLoaded = true; } catch (e) { ads.rewardedLoaded = false; }
+  }
+  async function loadInterstitial() {
+    if (!ads.ready || ads.interstitialLoaded || save.noAds) return;
+    try { await AdMob.prepareInterstitial({ adId: units.interstitial, isTesting: TEST_ADS }); ads.interstitialLoaded = true; } catch (e) { ads.interstitialLoaded = false; }
+  }
+  // Shows a full-screen ad between levels, only after the early levels and at most every few levels.
+  async function maybeInterstitial(level) {
+    ads.levelsSinceInterstitial++;
+    if (!ads.ready || save.noAds || level < INTERSTITIAL_FROM_LEVEL || ads.levelsSinceInterstitial < INTERSTITIAL_EVERY) return;
+    if (!ads.interstitialLoaded) { loadInterstitial(); return; }
+    ads.interstitialLoaded = false;
+    ads.levelsSinceInterstitial = 0;
+    try { await AdMob.showInterstitial(); } catch (e) {}
+    loadInterstitial();
+  }
+
   // ---------- level generation ----------
   function mulberry32(a) {
     return function () {
@@ -605,7 +656,7 @@
         <button class="btn primary" data-a="next">Level ${lvl + 1}</button>
         <button class="btn soft" data-a="replay">Replay for 3 stars</button>
       </div>`, card => {
-      card.querySelector('[data-a=next]').onclick = () => { closeOverlay(); startLevel(lvl + 1); };
+      card.querySelector('[data-a=next]').onclick = async () => { closeOverlay(); await maybeInterstitial(lvl); startLevel(lvl + 1); };
       card.querySelector('[data-a=replay]').onclick = () => { closeOverlay(); startLevel(lvl); };
     });
   }
@@ -637,8 +688,9 @@
     });
   }
 
-  // Placeholder for a rewarded video ad. In the phone app this is where AdMob or similar plays.
+  // Rewarded video: a real AdMob ad inside the phone app, a 3-second stand-in on the web.
   function playAd(reward, grant) {
+    if (ads.ready) { playRealAd(reward, grant); return; }
     let left = 3;
     showOverlay(`
       <div class="ad-box">
@@ -658,6 +710,36 @@
         closeOverlay();
       }
     }, 1000);
+  }
+
+  async function playRealAd(reward, grant) {
+    showOverlay(`<h2>Loading ad…</h2><p>Reward: ${reward}</p>`);
+    const noAd = () => showOverlay(`
+      <h2>No ad right now</h2>
+      <p>We couldn't load an ad. Check your connection and try again in a moment.</p>
+      <button class="btn soft" data-a="close">OK</button>`, card => {
+      card.querySelector('[data-a=close]').onclick = () => { closeOverlay(); if (state.hearts <= 0) outOfHearts(); };
+    });
+    if (!ads.rewardedLoaded) await loadRewarded();
+    if (!ads.rewardedLoaded) { noAd(); return; }
+    ads.rewardedLoaded = false;
+    let rewarded = false;
+    // The ad closing without a reward (the player skipped it) still needs to clear the loading card.
+    const dismissed = await AdMob.addListener('onRewardedVideoAdDismissed', () => {
+      setTimeout(() => {
+        dismissed.remove();
+        if (!rewarded) { closeOverlay(); if (state.hearts <= 0) outOfHearts(); }
+        loadRewarded();
+      }, 400);
+    });
+    try {
+      const item = await AdMob.showRewardVideoAd();
+      if (item) { rewarded = true; grant(); sfx.tap(); closeOverlay(); }
+    } catch (e) {
+      dismissed.remove();
+      noAd();
+      loadRewarded();
+    }
   }
 
   function showHome(first) {
@@ -722,6 +804,7 @@
   renderSound();
   startLevel(save.unlocked, true);
   showHome(true);
+  initAds();
 })();
 </script>
 </body>
