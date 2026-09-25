@@ -9,9 +9,14 @@
   [hidden] { display: none !important; }
 </style>
 <title>Arrowgami</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@600;700;800&display=swap">
+<!-- Fonts ship inside the app so the game looks right offline. -->
+<style>
+  @font-face { font-family: "Baloo 2"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/baloo-2-latin-600-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Baloo 2"; font-weight: 800; font-style: normal; font-display: swap; src: url("fonts/baloo-2-latin-800-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Nunito"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/nunito-latin-600-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Nunito"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/nunito-latin-700-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Nunito"; font-weight: 800; font-style: normal; font-display: swap; src: url("fonts/nunito-latin-800-normal.woff2") format("woff2"); }
+</style>
 <style>
   :root {
     color-scheme: light;
@@ -199,6 +204,15 @@
   }
   .ad-count { font-family: var(--display); font-size: 44px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
   .note { font-size: 12px; color: var(--ink-soft); }
+  .shop { display: grid; gap: 10px; text-align: left; }
+  .shop-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 16px; background: var(--sky-2); }
+  .shop-row strong { display: block; font-family: var(--display); font-size: 20px; line-height: 1.1; }
+  .shop-row small { display: block; color: var(--ink-soft); font-size: 13px; line-height: 1.35; margin-top: 2px; }
+  .shop-row .btn { flex: none; min-width: 84px; padding: 10px 14px; font-size: 16px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .owned { flex: none; font-family: var(--display); font-weight: 800; color: var(--right); }
+  .home-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .home-links .btn { font-size: 16px; padding: 10px 16px; }
   canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -431,6 +445,88 @@
       if (score > bestScore) { bestScore = score; best = b; best.waves = w.count; }
     }
     return best;
+  }
+
+  // ---------- in-app purchases ----------
+  // Product IDs must match the ones created in App Store Connect and Google Play Console.
+  const PRODUCTS = {
+    noAds: { id: 'arrowgami.removeads', consumable: false },
+    hints10: { id: 'arrowgami.hints10', consumable: true, hints: 10 },
+    hints30: { id: 'arrowgami.hints30', consumable: true, hints: 30 },
+  };
+  const Purchases = isNative && Cap.Plugins ? Cap.Plugins.NativePurchases : null;
+  const shop = { ready: false, prices: {} };
+
+  async function initStore() {
+    if (!Purchases) return;
+    try {
+      const { isBillingSupported } = await Purchases.isBillingSupported();
+      if (!isBillingSupported) return;
+      const { products } = await Purchases.getProducts({ productIdentifiers: Object.values(PRODUCTS).map(p => p.id), productType: 'inapp' });
+      products.forEach(p => shop.prices[p.identifier] = p.priceString);
+      shop.ready = true;
+      await restoreNoAds(false);
+    } catch (e) { console.warn('Store unavailable', e); }
+  }
+  // Re-grants "Remove ads" after a reinstall or on a new phone.
+  async function restoreNoAds(fromButton) {
+    if (!Purchases) return false;
+    try {
+      if (fromButton) await Purchases.restorePurchases();
+      const { purchases } = await Purchases.getPurchases({ productType: 'inapp', onlyCurrentEntitlements: true });
+      const owned = purchases.some(t => t.productIdentifier === PRODUCTS.noAds.id && !t.revocationDate);
+      if (owned && !save.noAds) { save.noAds = true; persist(); }
+      return owned;
+    } catch (e) { return false; }
+  }
+  async function buy(key) {
+    const prod = PRODUCTS[key];
+    try {
+      await Purchases.purchaseProduct({ productIdentifier: prod.id, productType: 'inapp', isConsumable: prod.consumable, quantity: 1 });
+    } catch (e) {
+      return false; // Cancelled or failed; the store already told the player why.
+    }
+    if (key === 'noAds') save.noAds = true;
+    if (prod.hints) save.hints += prod.hints;
+    persist(); renderHints();
+    sfx.win();
+    return true;
+  }
+
+  function showShop(back) {
+    const price = key => shop.prices[PRODUCTS[key].id] || '';
+    const canBuy = shop.ready;
+    const row = (key, title, sub, owned) => `
+      <div class="shop-row">
+        <div><strong>${title}</strong><small>${sub}</small></div>
+        ${owned ? '<span class="owned">Owned</span>' : `<button class="btn ${key === 'noAds' ? 'primary' : 'gold'}" data-buy="${key}" ${canBuy ? '' : 'disabled'}>${canBuy ? price(key) || 'Buy' : 'Buy'}</button>`}
+      </div>`;
+    showOverlay(`
+      <h2>Shop</h2>
+      <div class="shop">
+        ${row('noAds', 'Remove ads', 'No more ads between levels. Bonus videos stay optional.', save.noAds)}
+        ${row('hints10', '10 hints', 'Light up a safe arrow when you are stuck.')}
+        ${row('hints30', '30 hints', 'The best value pack.')}
+      </div>
+      ${canBuy ? '' : `<p class="note">${isNative ? 'The store is not available right now. Check your connection and try again.' : 'Purchases are available in the iPhone and Android app.'}</p>`}
+      <div class="actions">
+        ${Purchases ? '<button class="btn soft" data-a="restore">Restore purchases</button>' : ''}
+        <button class="btn soft" data-a="close">Back</button>
+      </div>`, card => {
+      card.querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => {
+        b.disabled = true;
+        const ok = await buy(b.dataset.buy);
+        if (ok) showShop(back); else b.disabled = false;
+      });
+      const r = card.querySelector('[data-a=restore]');
+      if (r) r.onclick = async () => {
+        r.disabled = true; r.textContent = 'Restoring…';
+        const owned = await restoreNoAds(true);
+        r.textContent = owned ? 'Remove ads restored' : 'Nothing to restore';
+        if (owned) setTimeout(() => showShop(back), 900);
+      };
+      card.querySelector('[data-a=close]').onclick = () => { sfx.tap(); back ? back() : closeOverlay(); };
+    });
   }
 
   // ---------- sound ----------
@@ -681,9 +777,11 @@
       <p>Watch a short ad to get 2 hints. You also earn a free hint every 3 levels.</p>
       <div class="actions">
         <button class="btn gold" data-a="ad">Watch ad for 2 hints</button>
+        <button class="btn primary" data-a="shop">Get more hints</button>
         <button class="btn soft" data-a="close">Keep playing</button>
       </div>`, card => {
       card.querySelector('[data-a=ad]').onclick = () => playAd('2 hints', () => { save.hints += 2; persist(); renderHints(); });
+      card.querySelector('[data-a=shop]').onclick = () => { sfx.tap(); showShop(); };
       card.querySelector('[data-a=close]').onclick = closeOverlay;
     });
   }
@@ -760,8 +858,15 @@
       <button class="btn primary" data-a="play">${first && cur === 1 ? 'Play' : 'Play level ' + cur}</button>
       <div class="map-label">Level map</div>
       <div class="map">${cells}</div>
+      <div class="home-links">
+        <button class="btn soft" data-a="shop">Shop</button>
+        ${ads.ready ? '<button class="btn soft" data-a="privacy">Privacy choices</button>' : ''}
+      </div>
       <div class="note">Progress is saved on this device.</div>`, card => {
       const go = l => { sfx.tap(); closeOverlay(); startLevel(l); };
+      card.querySelector('[data-a=shop]').onclick = () => { sfx.tap(); showShop(() => showHome(false)); };
+      const pv = card.querySelector('[data-a=privacy]');
+      if (pv) pv.onclick = () => { try { AdMob.showPrivacyOptionsForm(); } catch (e) {} };
       card.querySelector('[data-a=play]').onclick = () => go(cur);
       card.querySelectorAll('.map button:not(:disabled)').forEach(b => b.onclick = () => go(+b.dataset.l));
     });
@@ -805,6 +910,7 @@
   startLevel(save.unlocked, true);
   showHome(true);
   initAds();
+  initStore();
 })();
 </script>
 </body>
